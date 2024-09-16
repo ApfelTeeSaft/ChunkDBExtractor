@@ -55,7 +55,7 @@ namespace ChunkDBExtractor
             }
         }
 
-        private async void ExtractButton_Click(object sender, RoutedEventArgs e)
+        private void ExtractButton_Click(object sender, RoutedEventArgs e)
         {
             if (string.IsNullOrEmpty(sourceFolder) || string.IsNullOrEmpty(destinationFolder))
             {
@@ -63,20 +63,25 @@ namespace ChunkDBExtractor
                 return;
             }
 
-            try
-            {
-                ProgressWindow progressWindow = new ProgressWindow();
-                progressWindow.Show();
+            ProgressWindow progressWindow = new ProgressWindow();
+            progressWindow.Owner = this;
+            progressWindow.ShowInTaskbar = false;
 
+            Task.Run(async () =>
+            {
+                progressWindow.Dispatcher.Invoke(() => progressWindow.StartAnimation());
                 await ExtractChunkDBFilesAsync(sourceFolder, destinationFolder, progressWindow);
 
-                progressWindow.Close();
+                progressWindow.Dispatcher.Invoke(() =>
+                {
+                    progressWindow.StopAnimation();
+                    progressWindow.Close();
+                });
+
                 MessageBox.Show("Files extracted successfully!");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"An error occurred: {ex.Message}");
-            }
+            });
+
+            progressWindow.ShowDialog();
         }
 
         private void CheckIfReadyToExtract()
@@ -87,26 +92,20 @@ namespace ChunkDBExtractor
         private async Task ExtractChunkDBFilesAsync(string source, string destination, ProgressWindow progressWindow)
         {
             var chunkdbFiles = Directory.GetFiles(source, "*.chunkdb");
-            double progressPerFile = 100.0 / chunkdbFiles.Length;
-            double currentProgress = 0;
 
             foreach (var file in chunkdbFiles)
             {
                 try
                 {
-                    progressWindow.UpdateProgress(currentProgress, Path.GetFileName(file));
+                    progressWindow.UpdateProgress(Path.GetFileName(file));
 
                     await Task.Run(() => ExtractChunkDBFile(file, destination));
-
-                    currentProgress += progressPerFile;
                 }
                 catch (Exception ex)
                 {
                     MessageBox.Show($"An error occurred while extracting {file}: {ex.Message}");
                 }
             }
-
-            progressWindow.UpdateProgress(100, "Extraction Complete");
         }
 
         private void ExtractChunkDBFile(string file, string destination)
