@@ -1,0 +1,11 @@
+﻿<Window x:Class="ChunkDBExtractor.ProgressWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Processing..." Height="150" Width="400" WindowStartupLocation="CenterScreen" ResizeMode="NoResize">
+    <Grid>
+        <StackPanel Margin="20">
+            <TextBlock Name="FileNameTextBlock" FontSize="16" TextAlignment="Center" Margin="0,0,0,10"/>
+            <ProgressBar Name="ProgressBar" Height="30" Minimum="0" Maximum="100" />
+        </StackPanel>
+    </Grid>
+</Window>

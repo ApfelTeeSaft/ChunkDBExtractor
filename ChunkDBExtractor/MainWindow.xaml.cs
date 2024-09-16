@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Windows;
+using System.Threading.Tasks;
 using Microsoft.Win32;
 using System.Collections.Generic;
 using ICSharpCode.SharpZipLib.Zip.Compression;
@@ -54,7 +55,7 @@ namespace ChunkDBExtractor
             }
         }
 
-        private void ExtractButton_Click(object sender, RoutedEventArgs e)
+        private async void ExtractButton_Click(object sender, RoutedEventArgs e)
         {
             if (string.IsNullOrEmpty(sourceFolder) || string.IsNullOrEmpty(destinationFolder))
             {
@@ -64,7 +65,12 @@ namespace ChunkDBExtractor
 
             try
             {
-                ExtractChunkDBFiles(sourceFolder, destinationFolder);
+                ProgressWindow progressWindow = new ProgressWindow();
+                progressWindow.Show();
+
+                await ExtractChunkDBFilesAsync(sourceFolder, destinationFolder, progressWindow);
+
+                progressWindow.Close();
                 MessageBox.Show("Files extracted successfully!");
             }
             catch (Exception ex)
@@ -78,35 +84,50 @@ namespace ChunkDBExtractor
             ExtractButton.IsEnabled = !string.IsNullOrEmpty(sourceFolder) && !string.IsNullOrEmpty(destinationFolder);
         }
 
-        private void ExtractChunkDBFiles(string source, string destination)
+        private async Task ExtractChunkDBFilesAsync(string source, string destination, ProgressWindow progressWindow)
         {
-            foreach (var file in Directory.GetFiles(source, "*.chunkdb"))
+            var chunkdbFiles = Directory.GetFiles(source, "*.chunkdb");
+            double progressPerFile = 100.0 / chunkdbFiles.Length;
+            double currentProgress = 0;
+
+            foreach (var file in chunkdbFiles)
             {
                 try
                 {
-                    using (var stream = File.OpenRead(file))
-                    using (var reader = new BinaryReader(stream))
-                    {
-                        var chunkDatabase = new FChunkDatabase(reader);
+                    progressWindow.UpdateProgress(currentProgress, Path.GetFileName(file));
 
-                        foreach (var location in chunkDatabase.Locations)
-                        {
-                            stream.Seek((long)location.ByteStart, SeekOrigin.Begin);
-                            var chunkHeader = new FChunkHeader(reader);
+                    await Task.Run(() => ExtractChunkDBFile(file, destination));
 
-                            var guidString = $"{chunkHeader.Guid.A:X8}{chunkHeader.Guid.B:X8}{chunkHeader.Guid.C:X8}{chunkHeader.Guid.D:X8}";
-                            var chunkFilePath = Path.Combine(destination, guidString);
-
-                            var chunkData = reader.ReadBytes((int)chunkHeader.DataSizeCompressed);
-                            var decompressedData = chunkHeader.StoredAs == EChunkStorageFlags.None ? chunkData : FChunkHeader.Decompress(chunkData);
-
-                            File.WriteAllBytes(chunkFilePath, decompressedData);
-                        }
-                    }
+                    currentProgress += progressPerFile;
                 }
                 catch (Exception ex)
                 {
                     MessageBox.Show($"An error occurred while extracting {file}: {ex.Message}");
+                }
+            }
+
+            progressWindow.UpdateProgress(100, "Extraction Complete");
+        }
+
+        private void ExtractChunkDBFile(string file, string destination)
+        {
+            using (var stream = File.OpenRead(file))
+            using (var reader = new BinaryReader(stream))
+            {
+                var chunkDatabase = new FChunkDatabase(reader);
+
+                foreach (var location in chunkDatabase.Locations)
+                {
+                    stream.Seek((long)location.ByteStart, SeekOrigin.Begin);
+                    var chunkHeader = new FChunkHeader(reader);
+
+                    var guidString = $"{chunkHeader.Guid.A:X8}{chunkHeader.Guid.B:X8}{chunkHeader.Guid.C:X8}{chunkHeader.Guid.D:X8}";
+                    var chunkFilePath = Path.Combine(destination, guidString);
+
+                    var chunkData = reader.ReadBytes((int)chunkHeader.DataSizeCompressed);
+                    var decompressedData = chunkHeader.StoredAs == EChunkStorageFlags.None ? chunkData : FChunkHeader.Decompress(chunkData);
+
+                    File.WriteAllBytes(chunkFilePath, decompressedData);
                 }
             }
         }
